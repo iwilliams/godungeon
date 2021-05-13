@@ -34,6 +34,41 @@ const SIDES = {
 
 var adjacent := {}
 
+export var COORD_M = Vector2.ZERO
+
+var COORD_NW setget , _get_coord_nw
+func _get_coord_nw():
+    return COORD_M + Vector2(-1, -1)
+
+var COORD_N setget , _get_coord_n
+func _get_coord_n():
+    return COORD_M + Vector2(0, -1)
+    
+var COORD_NE setget , _get_coord_ne
+func _get_coord_ne():
+    return COORD_M + Vector2(1, -1)
+
+var COORD_W setget , _get_coord_w
+func _get_coord_w():
+    return COORD_M + Vector2(-1, 0)
+    
+var COORD_E setget , _get_coord_e
+func _get_coord_e():
+    return COORD_M + Vector2(1, 0)
+
+var COORD_SW setget , _get_coord_sw
+func _get_coord_sw():
+    return COORD_M + Vector2(-1, 1)
+
+var COORD_S setget , _get_coord_s
+func _get_coord_s():
+    return COORD_M + Vector2(0, 1)
+    
+var COORD_SE setget , _get_coord_se
+func _get_coord_se():
+    return COORD_M + Vector2(1, 1)
+
+
 export(Resource) var NW setget _set_nw, _get_nw
 func _set_nw(value):
     adjacent[SIDE_NW] = value
@@ -95,3 +130,7 @@ func _set_se(value):
     adjacent[SIDE_SE] = value
 func _get_se():
     return adjacent.get(SIDE_SE)
+
+
+func side_is_exactly(side, type):
+    return adjacent[side] == type

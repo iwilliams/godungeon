@@ -32,7 +32,11 @@ func import_image(use_offset = false):
             var coord := Vector2(x, y)
             var color := image.get_pixelv(Vector2(x, y))
             if color.a > 0:
-                var tile_type = dungeon_tiles.tile_palette.get(color)
+                var key_color = Color.transparent
+                for palette_color in dungeon_tiles.tile_palette.keys():
+                    if color.is_equal_approx(palette_color):
+                        key_color = palette_color
+                var tile_type = dungeon_tiles.tile_palette.get(key_color)
                 tiles[coord - offset] = tile_type
     image.lock()
     dungeon_tiles.tiles = tiles

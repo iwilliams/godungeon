@@ -32,6 +32,7 @@ func _ready():
     tile_container = Spatial.new()
     add_child(tile_container)
     last_tile_coord = position_to_tile_coord(global_transform.origin)
+#    call_deferred("_draw_tiles")
     _draw_tiles()
 
 
@@ -59,6 +60,7 @@ func _physics_process(delta):
                 (material as ShaderMaterial).set_shader_param('tiles_offset', last_tile_coord + rect.position)
 
 
+
 func _draw_tiles():
     if not is_inside_tree():
         return
@@ -70,17 +72,73 @@ func _draw_tiles():
     
     tile_container.set_owner(get_tree().edited_scene_root if show_nodes_in_editor else null)
     
+    var cached_templates = {}
+    var multimesh_cache = {}
+    
     var dt := dungeon_tiles as GodungeonTiles
+    var big_static_body = StaticBody.new()
+    tile_container.add_child(big_static_body)
     for tile_coord in dt.tiles.keys():
         var tile = dt.tiles.get(tile_coord)
         var tile_template := tile_templates.get(tile) as PackedScene
         if tile_template:
-            var tile_instance = tile_template.instance()
-            tile_instance.adjacency_map = dt.get_adjacency_map(tile_coord)
-            tile_container.add_child(tile_instance)
-            tile_instance.set_owner(get_tree().edited_scene_root if show_nodes_in_editor else null)
-            tile_instance.transform.origin = Vector3(tile_coord.x * tile_size, 0, tile_coord.y * tile_size)
+            if not cached_templates.has(tile_template):
+                cached_templates[tile_template] = tile_template.instance()
+            var tile_instance = cached_templates.get(tile_template)
             
+            if tile_instance.has_method("get_meshes"):
+                var adjacency_map = dt.get_adjacency_map(tile_coord)
+                var meshes = tile_instance.call("get_meshes", adjacency_map)
+                for mesh_instance in meshes:
+                    var mesh = mesh_instance[0]
+                    var mesh_transform = mesh_instance[1]
+                    mesh_transform.origin += Vector3(tile_coord.x * tile_size, 0, tile_coord.y * tile_size)
+                    if multimesh_cache.has(mesh):
+                        (multimesh_cache[mesh] as Array).push_front(mesh_transform)
+                    else:
+                        multimesh_cache[mesh] = [mesh_transform]
+
+                
+                if not Engine.editor_hint and tile_instance.has_method("get_collision"):
+                    var collision = tile_instance.get_collision(adjacency_map)
+                    if collision.size() > 0:
+                        var static_body := StaticBody.new()
+                        for colliders in collision:
+                            var shape = colliders[0].duplicate()
+                            shape.transform = colliders[1]
+                            shape.transform.origin += Vector3(tile_coord.x * tile_size, 0, tile_coord.y * tile_size)
+                            big_static_body.add_child(shape)
+#                            static_body.add_child(shape)
+#                        static_body.transform.origin = Vector3(tile_coord.x * tile_size, 0, tile_coord.y * tile_size)
+#                        tile_container.add_child(static_body)
+                        
+            else:
+                var tile_node = tile_instance.duplicate()
+                if "adjacency_map" in tile_instance:
+                    tile_node.adjacency_map = dt.get_adjacency_map(tile_coord)
+                tile_container.add_child(tile_node)
+                tile_node.set_owner(get_tree().edited_scene_root if show_nodes_in_editor else null)
+                tile_node.transform.origin = Vector3(tile_coord.x * tile_size, 0, tile_coord.y * tile_size)
+
+    
+    for mesh in multimesh_cache.keys():
+        var instances = multimesh_cache.get(mesh)
+        var multi_mesh_instance := MultiMeshInstance.new()
+        tile_container.add_child(multi_mesh_instance)
+        # Create the multimesh.
+        var multimesh = MultiMesh.new()
+        # Set the format first.
+        multimesh.transform_format = MultiMesh.TRANSFORM_3D
+        multimesh.color_format = MultiMesh.COLOR_NONE
+        multimesh.custom_data_format = MultiMesh.CUSTOM_DATA_NONE
+        # Then resize (otherwise, changing the format is not allowed).
+        multimesh.instance_count = instances.size()
+        multimesh.mesh = mesh
+        for index in range(0, instances.size()):
+            multimesh.set_instance_transform(index, instances[index])
+            
+        multi_mesh_instance.set_multimesh(multimesh)
+    
     if materials.size() > 0:
         var texture = dungeon_tiles.to_texture()
         var rect: Rect2 = dungeon_tiles.get_rect()
