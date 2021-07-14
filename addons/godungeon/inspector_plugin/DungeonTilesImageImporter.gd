@@ -78,3 +78,8 @@ func _on_clear_tiles_pressed():
 
 func _on_center_pressed():
     dungeon_tiles.center()
+
+
+func _on_TopLeftAlign_pressed():
+    dungeon_tiles.offset(dungeon_tiles.get_rect().position * -1)
+    pass # Replace with function body.

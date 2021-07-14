@@ -98,19 +98,29 @@ func _draw_tiles():
                     else:
                         multimesh_cache[mesh] = [mesh_transform]
 
+                var use_physics_server = true
                 
                 if not Engine.editor_hint and tile_instance.has_method("get_collision"):
                     var collision = tile_instance.get_collision(adjacency_map)
                     if collision.size() > 0:
-                        var static_body := StaticBody.new()
                         for colliders in collision:
-                            var shape = colliders[0].duplicate()
-                            shape.transform = colliders[1]
-                            shape.transform.origin += Vector3(tile_coord.x * tile_size, 0, tile_coord.y * tile_size)
-                            big_static_body.add_child(shape)
-#                            static_body.add_child(shape)
-#                        static_body.transform.origin = Vector3(tile_coord.x * tile_size, 0, tile_coord.y * tile_size)
-#                        tile_container.add_child(static_body)
+                            if use_physics_server:
+                                var body = PhysicsServer.body_create(0)
+                                var shape = colliders[0].shape                           
+                                PhysicsServer.body_add_shape(body, shape)
+                                PhysicsServer.body_set_collision_layer(body, big_static_body.collision_layer)
+                                PhysicsServer.body_set_collision_mask(body, big_static_body.collision_mask)
+                                PhysicsServer.body_set_ray_pickable(body, true)
+                                PhysicsServer.body_set_space(body, get_world().space)
+                                var t = colliders[1]
+                                t.origin += Vector3(tile_coord.x * tile_size, 0, tile_coord.y * tile_size)
+                                PhysicsServer.body_set_state(body, PhysicsServer.BODY_STATE_TRANSFORM, t)
+                            else:
+                                var shape = colliders[0].duplicate()
+                                shape.transform = colliders[1]
+                                shape.transform.origin += Vector3(tile_coord.x * tile_size, 0, tile_coord.y * tile_size)
+                                big_static_body.add_child(shape)
+
                         
             else:
                 var tile_node = tile_instance.duplicate()
@@ -130,13 +140,39 @@ func _draw_tiles():
         # Set the format first.
         multimesh.transform_format = MultiMesh.TRANSFORM_3D
         multimesh.color_format = MultiMesh.COLOR_NONE
-        multimesh.custom_data_format = MultiMesh.CUSTOM_DATA_NONE
+        multimesh.custom_data_format = MultiMesh.CUSTOM_DATA_FLOAT
         # Then resize (otherwise, changing the format is not allowed).
         multimesh.instance_count = instances.size()
         multimesh.mesh = mesh
+        var dungeon_rect: Rect2 = dungeon_tiles.get_rect()
+        var bulk_data := PoolRealArray()
         for index in range(0, instances.size()):
-            multimesh.set_instance_transform(index, instances[index])
+            var trans := instances[index] as Transform
+            bulk_data.append(trans.basis.x.x)
+            bulk_data.append(trans.basis.x.y)
+            bulk_data.append(-trans.basis.x.z) # This has to be negative for some reason
+            bulk_data.append(trans.origin.x)
+
+            bulk_data.append(trans.basis.y.x)
+            bulk_data.append(trans.basis.y.y)
+            bulk_data.append(trans.basis.y.z)
+            bulk_data.append(trans.origin.y)
+
+            bulk_data.append(-trans.basis.z.x) # This has to be negative for some reason
+            bulk_data.append(trans.basis.z.y)
+            bulk_data.append(trans.basis.z.z)
+            bulk_data.append(trans.origin.z)
             
+            var tile = position_to_tile_coord(trans.origin)
+#            bulk_data.append(tile.x / dungeon_rect.size.x)
+            bulk_data.append(tile.x)
+#            bulk_data.append(tile.y / dungeon_rect.size.y)
+            bulk_data.append(tile.y)
+            bulk_data.append(dungeon_rect.position.x)
+            bulk_data.append(dungeon_rect.position.y)
+#            multimesh.set_instance_transform(index, instances[index])
+        
+        multimesh.set_as_bulk_array(bulk_data)
         multi_mesh_instance.set_multimesh(multimesh)
     
     if materials.size() > 0:

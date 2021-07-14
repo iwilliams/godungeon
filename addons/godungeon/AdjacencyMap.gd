@@ -134,3 +134,7 @@ func _get_se():
 
 func side_is_exactly(side, type):
     return adjacent[side] == type
+
+
+func side_is_not(side, type):
+    return adjacent[side] != type
